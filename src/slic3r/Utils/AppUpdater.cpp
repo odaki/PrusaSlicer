@@ -149,9 +149,7 @@ bool AppDownloader::priv::download_file(const DownloadAppData& data)
 	if(!m_user_dest_path.empty())
 		dest_path = m_user_dest_path;
 	else {
-		size_t slash = data.url.rfind('/');
-		std::string filename = slash != std::string::npos ? data.url.substr(slash) : data.url;
-		dest_path = m_default_dest_folder / filename;
+		dest_path = m_default_dest_folder / AppDownloader::get_filename_from_url(data.url);
 	}
 	assert(!dest_path.empty());
 	if (dest_path.empty())
@@ -159,7 +157,6 @@ bool AppDownloader::priv::download_file(const DownloadAppData& data)
 		BOOST_LOG_TRIVIAL(error) << "Download from " << data.url << " could not start. Destination path is empty.";
 		return false;
 	}
-	//bool res = get_file(data.url, 70 * 1024 * 1024, std::bind(&AppDownloader::priv::write_file, this));
 	bool res = get_file(data.url, 70 * 1024 * 1024, 
 		[dest_path](std::string body){
 			boost::filesystem::path tmp_path = dest_path;
@@ -179,8 +176,9 @@ bool AppDownloader::priv::download_file(const DownloadAppData& data)
 			return true;
 		}
 		,[](Http::Progress progress){
-			double gui_progress = progress.ultotal > 0 ? progress.ulnow / progress.ultotal : 0;
-			printf( "Download progress: %f\n", gui_progress);
+			size_t gui_progress = progress.dltotal > 0 ? 100 * progress.dlnow / progress.dltotal : 0;
+			//printf("%f %f %f\n",progress.ulnow , progress.ultotal, progress.ultotal > 0 ? progress.ulnow / progress.ultotal : 0.f);
+			printf("Download progress: %d\n", gui_progress);
 		});
 	// [this](Http::Progress progress, bool &cancel) { this->progress_fn(std::move(progress), cancel); }
 	BOOST_LOG_TRIVIAL(error) << "Download from " << data.url << " to " << dest_path.string() << " was " << res;
@@ -221,8 +219,24 @@ void AppDownloader::run(const DownloadAppData& input_data)
 		[this, input_data]() {
 			if (!p->download_file(input_data/*{ "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe" }*/))
 				return;
-			p->run_downloaded_file();
+			if (input_data.start_after)
+				p->run_downloaded_file();
 		});
+}
+
+void AppDownloader::set_dest_path(const std::string& dest)
+{
+	p->m_user_dest_path = boost::filesystem::path(dest);
+}
+std::string AppDownloader::get_default_dest_folder()
+{
+	return p->m_default_dest_folder.string();
+}
+
+std::string AppDownloader::get_filename_from_url(const std::string& url)
+{
+	size_t slash = url.rfind('/');
+	return (slash != std::string::npos ? url.substr(slash + 1) : url);
 }
 
 } //namespace Slic3r 

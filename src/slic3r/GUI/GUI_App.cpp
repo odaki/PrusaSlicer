@@ -1167,12 +1167,41 @@ bool GUI_App::on_init_inner()
                         , _u8L("See Download page.")
                         , [](wxEvtHandler* evnthndlr) {wxGetApp().open_web_page_localized("https://www.prusa3d.com/slicerweb"); return true; }
                     );
+
+                    std::string url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
+
+                    AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *Semver::parse(into_u8(evt.GetString())));
+                    auto dialog_result = dialog.ShowModal();
+                    if (dialog.disable_version_check()) {
+                        app_config->set("notify_release", "none");
+                    }
+                    if (dialog_result == wxID_OK) {
+                        AppUpdateDownloadDialog dwnld_dlg(*Semver::parse(into_u8(evt.GetString())));
+                        dialog_result = dwnld_dlg.ShowModal();
+                        if (dialog_result == wxID_OK) {
+                            AppDownloader* app_downloader = new AppDownloader();
+                            if (dwnld_dlg.select_download_path())
+                            {
+                                wxFileDialog save_dlg(
+                                    plater()
+                                    , _L("Save as:")
+                                    , boost::nowide::widen(app_downloader->get_default_dest_folder())
+                                    , boost::nowide::widen(AppDownloader::get_filename_from_url(url))
+                                    //, "PrusaSlicer_Win_standalone_2.3.3.exe"
+                                    //, "EXE Files (*.exe)|*.exe"
+                                    , "*.exe"
+                                    , wxFD_SAVE | wxFD_OVERWRITE_PROMPT
+                                );
+                                save_dlg.ShowModal();
+                            }
+                            
+                           
+                            app_downloader->run({ url, dwnld_dlg.run_after_download()});
+                        }
+                    }
+                    
                 }
-            }
-            //Slic3r::AppDownloader::get_instance().download_file({"https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe"});
-            //Slic3r::AppDownloader::get_instance().check_version();
-            AppDownloader* app_downloader = new AppDownloader();
-            app_downloader->run({"https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe"});
+            }       
             });
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             app_config->save();

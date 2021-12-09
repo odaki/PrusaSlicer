@@ -11,6 +11,7 @@ namespace Slic3r {
 	struct DownloadAppData
 	{
 		std::string url;
+		bool		start_after;
 	};
 
 	class AppDownloader
@@ -24,6 +25,10 @@ namespace Slic3r {
 		AppDownloader& operator=(const AppDownloader&) = delete;
 
 		void run(const DownloadAppData& input_data);
+	
+		void		set_dest_path(const std::string& dest);
+		std::string get_default_dest_folder();
+		static std::string get_filename_from_url(const std::string& url);
 	private:
 		struct priv;
 		std::unique_ptr<priv> p;
