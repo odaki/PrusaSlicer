@@ -803,7 +803,6 @@ GUI_App::GUI_App(EAppMode mode)
     , m_imgui(new ImGuiWrapper())
 	, m_removable_drive_manager(std::make_unique<RemovableDriveManager>())
 	, m_other_instance_message_handler(std::make_unique<OtherInstanceMessageHandler>())
-    , m_app_downloader(std::make_unique<AppDownloader>())
 {
 	//app config initializes early becasuse it is used in instance checking in PrusaSlicer.cpp
 	this->init_app_config();
@@ -3143,7 +3142,9 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     //  Doesn't wish to download
     if (dialog_result != wxID_OK) {
         return;
-    }    
+    }   
+    if (m_app_downloader.get() == nullptr)
+        m_app_downloader = std::make_unique<AppDownloader>();
     // Save as dialog
     if (dwnld_dlg.select_download_path()) {
         wxFileDialog save_dlg(
