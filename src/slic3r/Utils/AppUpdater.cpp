@@ -213,7 +213,7 @@ AppDownloader::~AppDownloader()
 		p->m_thread.join();
 	}
 }
-void AppDownloader::run(const DownloadAppData& input_data)
+void AppDownloader::sync(const DownloadAppData& input_data)
 {
 	p->m_thread = std::thread(
 		[this, input_data]() {
@@ -237,6 +237,12 @@ std::string AppDownloader::get_filename_from_url(const std::string& url)
 {
 	size_t slash = url.rfind('/');
 	return (slash != std::string::npos ? url.substr(slash + 1) : url);
+}
+
+std::string AppDownloader::get_file_extension_from_url(const std::string& url)
+{
+	size_t dot = url.rfind('.');
+	return (dot != std::string::npos ? url.substr(dot) : url);
 }
 
 } //namespace Slic3r 

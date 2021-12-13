@@ -1155,54 +1155,7 @@ bool GUI_App::on_init_inner()
 #endif // __WXMSW__
 
         preset_updater = new PresetUpdater();
-        Bind(EVT_SLIC3R_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
-            app_config->set("version_online", into_u8(evt.GetString()));
-            app_config->save();
-            std::string opt = app_config->get("notify_release");
-            if (this->plater_ != nullptr && (opt == "all" || opt == "release")) {
-                if (*Semver::parse(SLIC3R_VERSION) < *Semver::parse(into_u8(evt.GetString()))) {
-                    this->plater_->get_notification_manager()->push_notification(NotificationType::NewAppAvailable
-                        , NotificationManager::NotificationLevel::ImportantNotificationLevel
-                        , Slic3r::format(_u8L("New release version %1% is available."), evt.GetString())
-                        , _u8L("See Download page.")
-                        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_web_page_localized("https://www.prusa3d.com/slicerweb"); return true; }
-                    );
-
-                    std::string url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
-
-                    AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *Semver::parse(into_u8(evt.GetString())));
-                    auto dialog_result = dialog.ShowModal();
-                    if (dialog.disable_version_check()) {
-                        app_config->set("notify_release", "none");
-                    }
-                    if (dialog_result == wxID_OK) {
-                        AppUpdateDownloadDialog dwnld_dlg(*Semver::parse(into_u8(evt.GetString())));
-                        dialog_result = dwnld_dlg.ShowModal();
-                        if (dialog_result == wxID_OK) {
-                            AppDownloader* app_downloader = new AppDownloader();
-                            if (dwnld_dlg.select_download_path())
-                            {
-                                wxFileDialog save_dlg(
-                                    plater()
-                                    , _L("Save as:")
-                                    , boost::nowide::widen(app_downloader->get_default_dest_folder())
-                                    , boost::nowide::widen(AppDownloader::get_filename_from_url(url))
-                                    //, "PrusaSlicer_Win_standalone_2.3.3.exe"
-                                    //, "EXE Files (*.exe)|*.exe"
-                                    , "*.exe"
-                                    , wxFD_SAVE | wxFD_OVERWRITE_PROMPT
-                                );
-                                save_dlg.ShowModal();
-                            }
-                            
-                           
-                            app_downloader->run({ url, dwnld_dlg.run_after_download()});
-                        }
-                    }
-                    
-                }
-            }       
-            });
+        Bind(EVT_SLIC3R_VERSION_ONLINE, &GUI_App::on_version_read, this);
         Bind(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, [this](const wxCommandEvent& evt) {
             app_config->save();
             if (this->plater_ != nullptr && app_config->get("notify_release") == "all") {
@@ -3135,6 +3088,75 @@ void GUI_App::associate_gcode_files()
         // notify Windows only when any of the values gets changed
         ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }
+
+void GUI_App::on_version_read(wxCommandEvent& evt)
+{
+    
+    app_config->set("version_online", into_u8(evt.GetString()));
+    app_config->save();
+    std::string opt = app_config->get("notify_release");
+    if (this->plater_ == nullptr || (opt != "all" && opt != "release")) {
+        return;
+    }
+    if (*Semver::parse(SLIC3R_VERSION) >= *Semver::parse(into_u8(evt.GetString()))) {
+        return;
+    }
+    // notification
+    /*
+    this->plater_->get_notification_manager()->push_notification(NotificationType::NewAppAvailable
+        , NotificationManager::NotificationLevel::ImportantNotificationLevel
+        , Slic3r::format(_u8L("New release version %1% is available."), evt.GetString())
+        , _u8L("See Download page.")
+        , [](wxEvtHandler* evnthndlr) {wxGetApp().open_web_page_localized("https://www.prusa3d.com/slicerweb"); return true; }
+    );
+    */
+    // updater 
+
+    // TODO: get from evt
+    std::string url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
+
+    // dialog with new version info
+    AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *Semver::parse(into_u8(evt.GetString())));
+    auto dialog_result = dialog.ShowModal();
+    // checkbox "do not show again"
+    if (dialog.disable_version_check()) {
+        app_config->set("notify_release", "none");
+    }
+    // Doesn't wish to update
+    if (dialog_result != wxID_OK) {
+        return;
+    }
+    // dialog with new version download (installer or app dependent on system)
+    AppUpdateDownloadDialog dwnld_dlg(*Semver::parse(into_u8(evt.GetString())));
+    dialog_result = dwnld_dlg.ShowModal();
+    //  Doesn't wish to download
+    if (dialog_result != wxID_OK) {
+        return;
+    }    
+    // Save as dialog
+    if (dwnld_dlg.select_download_path()) {
+        wxFileDialog save_dlg(
+            plater()
+            , _L("Save as:")
+            , boost::nowide::widen(m_app_downloader->get_default_dest_folder())
+            , boost::nowide::widen(AppDownloader::get_filename_from_url(url))
+            //, "EXE Files (*.exe)|*.exe"
+            , boost::nowide::widen(AppDownloader::get_file_extension_from_url(url))
+            , wxFD_SAVE | wxFD_OVERWRITE_PROMPT
+        );
+        // Canceled
+        if (save_dlg.ShowModal() != wxID_OK) {
+            return;
+        // set path
+        } else {
+            m_app_downloader->set_dest_path(save_dlg.GetPath().ToUTF8().data());
+        }
+    }
+    // start download
+    m_app_downloader->sync({ url, dwnld_dlg.run_after_download() });
+
+}
+
 #endif // __WXMSW__
 
 } // GUI
