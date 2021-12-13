@@ -158,7 +158,7 @@ bool AppDownloader::priv::check_version()
 bool AppDownloader::priv::download_file(const DownloadAppData& data)
 {
 	boost::filesystem::path dest_path;
-	size_t last_gui_progress;
+	size_t last_gui_progress = 0;
 	if(!m_user_dest_path.empty())
 		dest_path = m_user_dest_path;
 	else {
@@ -190,9 +190,8 @@ bool AppDownloader::priv::download_file(const DownloadAppData& data)
 		}
 		,[&last_gui_progress](Http::Progress progress){
 			size_t gui_progress = progress.dltotal > 0 ? 100 * progress.dlnow / progress.dltotal : 0;
-			printf("Download progress: %d\n", gui_progress);
-			if (last_gui_progress < gui_progress)
-			{
+			//printf("Download progress: %d\n", gui_progress);
+			if (last_gui_progress < gui_progress && (last_gui_progress != 0 || gui_progress!= 100)) {
 				last_gui_progress = gui_progress;
 				wxCommandEvent* evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS);
 				evt->SetString(GUI::from_u8(std::to_string(gui_progress)));
