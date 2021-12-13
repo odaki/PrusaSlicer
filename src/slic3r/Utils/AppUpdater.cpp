@@ -78,7 +78,17 @@ namespace {
 		}
 		return false;
 	}
-#endif //_WIN32
+#elif __linux__
+	static bool run_file(const boost::filesystem::path& path)
+	{
+		// find updater exe
+		if (boost::filesystem::exists(path)) {
+			std::string command = path.string();
+			return std::system(command.c_str()) != -1;
+		}
+		return false;
+	}
+#endif //_WIN32 || __linux__
 }
 
 wxDEFINE_EVENT(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, wxCommandEvent);
@@ -204,9 +214,18 @@ bool AppDownloader::priv::run_downloaded_file()
 		BOOST_LOG_TRIVIAL(error) << "could not run downloaded file. Destination path is empty.";
 		return false;
 	}
+#ifdef _WIN32
 	bool res = run_file(m_last_dest_path);
 	BOOST_LOG_TRIVIAL(error) << "Running "<< m_last_dest_path.string() << " was " << res;
 	return res;
+#elif __linux__
+	bool res = run_file(m_last_dest_path);
+	BOOST_LOG_TRIVIAL(error) << "Running "<< m_last_dest_path.string() << " was " << res;
+	return res;
+#else
+	return false;
+#endif
+
 }
 
 

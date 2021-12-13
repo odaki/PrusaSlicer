@@ -3093,6 +3093,8 @@ void GUI_App::associate_gcode_files()
         // notify Windows only when any of the values gets changed
         ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }
+#endif // __WXMSW__
+
 
 void GUI_App::on_version_read(wxCommandEvent& evt)
 {
@@ -3118,7 +3120,11 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     // updater 
 
     // TODO: get from evt
+#ifdef _WIN32
     std::string url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
+#else
+    std::string url = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.3.3/PrusaSlicer-2.3.3+linux-x64-GTK3-202107161044.AppImage";
+#endif
 
     // dialog with new version info
     AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *Semver::parse(into_u8(evt.GetString())));
@@ -3162,8 +3168,6 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     m_app_downloader->sync({ url, dwnld_dlg.run_after_download() });
 
 }
-
-#endif // __WXMSW__
 
 } // GUI
 } //Slic3r
