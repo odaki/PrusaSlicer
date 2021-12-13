@@ -1172,6 +1172,10 @@ bool GUI_App::on_init_inner()
                 }
             }
             });
+        Bind(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, [this](const wxCommandEvent& evt) {
+            if (this->plater_ != nullptr)
+                this->plater_->get_notification_manager()->progress_indicator_set_progress(std::stoi(into_u8(evt.GetString())));
+        });
     }
     else {
 #ifdef __WXMSW__ 
@@ -3154,6 +3158,7 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
         }
     }
     // start download
+    this->plater_->get_notification_manager()->progress_indicator_set_status_text(_utf8("Download").c_str());
     m_app_downloader->sync({ url, dwnld_dlg.run_after_download() });
 
 }

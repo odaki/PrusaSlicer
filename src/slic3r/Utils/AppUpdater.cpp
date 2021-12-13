@@ -81,6 +81,8 @@ namespace {
 #endif //_WIN32
 }
 
+wxDEFINE_EVENT(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, wxCommandEvent);
+
 struct AppDownloader::priv {
 	priv();
 	// Download file. What happens with the data is specified in completefn.
@@ -146,6 +148,7 @@ bool AppDownloader::priv::check_version()
 bool AppDownloader::priv::download_file(const DownloadAppData& data)
 {
 	boost::filesystem::path dest_path;
+	size_t last_gui_progress;
 	if(!m_user_dest_path.empty())
 		dest_path = m_user_dest_path;
 	else {
@@ -175,10 +178,17 @@ bool AppDownloader::priv::download_file(const DownloadAppData& data)
 			}
 			return true;
 		}
-		,[](Http::Progress progress){
+		,[&last_gui_progress](Http::Progress progress){
 			size_t gui_progress = progress.dltotal > 0 ? 100 * progress.dlnow / progress.dltotal : 0;
-			//printf("%f %f %f\n",progress.ulnow , progress.ultotal, progress.ultotal > 0 ? progress.ulnow / progress.ultotal : 0.f);
 			printf("Download progress: %d\n", gui_progress);
+			if (last_gui_progress < gui_progress)
+			{
+				last_gui_progress = gui_progress;
+				wxCommandEvent* evt = new wxCommandEvent(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS);
+				evt->SetString(GUI::from_u8(std::to_string(gui_progress)));
+				GUI::wxGetApp().QueueEvent(evt);
+			}
+			
 		});
 	// [this](Http::Progress progress, bool &cancel) { this->progress_fn(std::move(progress), cancel); }
 	BOOST_LOG_TRIVIAL(error) << "Download from " << data.url << " to " << dest_path.string() << " was " << res;
