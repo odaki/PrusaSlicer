@@ -3170,5 +3170,11 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
 
 }
 
+void GUI_App::app_updater()
+{
+    if (m_app_downloader.get() == nullptr)
+        m_app_downloader = std::make_unique<AppDownloader>();
+}
+
 } // GUI
 } //Slic3r

@@ -9,35 +9,17 @@
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/Utils/Http.hpp"
 
+#ifdef _WIN32
+#include <shellapi.h>
+#endif // _WIN32
+
+
 namespace Slic3r {
 
 namespace {
-	/*
-	bool get_file(const std::string& url, size_t size_limit, std::function<bool(std::string )> completefn)
-	{
-		bool res = false;
-		Http::get(url)
-			.size_limit(size_limit)
-			.on_progress([](Http::Progress, bool& cancel) {
-			if (cancel) { cancel = true; }
-				})
-			.on_error([&](std::string body, std::string error, unsigned http_status) {
-					(void)body;
-					BOOST_LOG_TRIVIAL(error) << GUI::format("Error getting: `%1%`: HTTP %2%, %3%",
-						url,
-						http_status,
-						error);
-				})
-			.on_complete([&](std::string body, unsigned ) {
-				assert(completefn != nullptr);
-				res = completefn(body);
-			})
-			.perform_sync();
-		return res;
-	}
-	*/
+	
 #ifdef _WIN32
-	static bool run_file(const boost::filesystem::path& path)
+	bool run_file(const boost::filesystem::path& path)
 	{
 		// find updater exe
 		if (boost::filesystem::exists(path)) {
@@ -78,8 +60,16 @@ namespace {
 		}
 		return false;
 	}
-#elif __linux__
-	static bool run_file(const boost::filesystem::path& path)
+
+	bool open_folder(const boost::filesystem::path& path)
+	{
+		// this command can run the installer exe as well, but is it better than CreateProcessW?
+		ShellExecuteW(NULL, NULL, path.parent_path().wstring().c_str(), NULL, NULL, SW_SHOWNORMAL);
+		return true;
+	}
+
+#elif __linux__ || __APPLE__
+	bool run_file(const boost::filesystem::path& path)
 	{
 		// find updater exe
 		if (boost::filesystem::exists(path)) {
@@ -88,7 +78,7 @@ namespace {
 		}
 		return false;
 	}
-#endif //_WIN32 || __linux__
+#endif 
 }
 
 wxDEFINE_EVENT(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, wxCommandEvent);
@@ -245,11 +235,21 @@ void AppDownloader::sync(const DownloadAppData& input_data)
 {
 	p->m_thread = std::thread(
 		[this, input_data]() {
-			if (!p->download_file(input_data/*{ "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe" }*/))
+			if (!p->download_file(input_data))
 				return;
 			if (input_data.start_after)
 				p->run_downloaded_file();
+#ifdef _WIN32
+			else
+				open_folder(p->m_last_dest_path);
+#endif // _WIN32
+			
 		});
+}
+
+void AppDownloader::sync_version()
+{
+
 }
 
 void AppDownloader::set_dest_path(const std::string& dest)

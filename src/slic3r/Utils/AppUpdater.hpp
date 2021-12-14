@@ -24,8 +24,11 @@ public:
 	AppDownloader& operator=(AppDownloader&&) = delete;
 	AppDownloader& operator=(const AppDownloader&) = delete;
 
+	// downloads app file
 	void sync(const DownloadAppData& input_data);
-	
+	// downloads version file
+	void sync_version();
+
 	void		set_dest_path(const std::string& dest);
 	std::string get_default_dest_folder();
 

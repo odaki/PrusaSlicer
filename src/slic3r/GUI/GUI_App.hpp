@@ -351,6 +351,7 @@ private:
     bool            config_wizard_startup();
 	void            check_updates(const bool verbose);
     void            on_version_read(wxCommandEvent& evt);
+    void            app_updater();
 
     bool                    m_init_app_config_from_older { false };
     std::string             m_older_data_dir_path;
