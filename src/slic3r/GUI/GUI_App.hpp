@@ -32,7 +32,7 @@ class PresetUpdater;
 class ModelObject;
 class PrintHostJobQueue;
 class Model;
-class AppDownloader;
+class AppUpdater;
 
 namespace GUI{
 
@@ -150,7 +150,7 @@ private:
     std::unique_ptr<ImGuiWrapper> m_imgui;
     std::unique_ptr<PrintHostJobQueue> m_printhost_job_queue;
 	std::unique_ptr <OtherInstanceMessageHandler> m_other_instance_message_handler;
-    std::unique_ptr <AppDownloader> m_app_downloader;
+    std::unique_ptr <AppUpdater> m_app_downloader;
     std::unique_ptr <wxSingleInstanceChecker> m_single_instance_checker;
     std::string m_instance_hash_string;
 	size_t m_instance_hash_int;
@@ -352,6 +352,8 @@ private:
 	void            check_updates(const bool verbose);
     void            on_version_read(wxCommandEvent& evt);
     void            app_updater();
+    // inititate read of version file online in separate thread
+    void            version_check();
 
     bool                    m_init_app_config_from_older { false };
     std::string             m_older_data_dir_path;

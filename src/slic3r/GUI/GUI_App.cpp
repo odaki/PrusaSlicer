@@ -773,6 +773,7 @@ void GUI_App::post_init()
         CallAfter([this] {
             bool cw_showed = this->config_wizard_startup();
             this->preset_updater->sync(preset_bundle);
+            this->version_check();
             if (! cw_showed) {
                 // The CallAfter is needed as well, without it, GL extensions did not show.
                 // Also, we only want to show this when the wizard does not, so the new user
@@ -806,6 +807,8 @@ GUI_App::GUI_App(EAppMode mode)
 {
 	//app config initializes early becasuse it is used in instance checking in PrusaSlicer.cpp
 	this->init_app_config();
+    // init app downloader after path to datadir is set
+    m_app_downloader = std::make_unique<AppUpdater>();
 }
 
 GUI_App::~GUI_App()
@@ -1173,7 +1176,7 @@ bool GUI_App::on_init_inner()
             });
         Bind(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr)
-                this->plater_->get_notification_manager()->progress_indicator_set_progress(std::stoi(into_u8(evt.GetString())));
+                this->plater_->get_notification_manager()->set_download_progress_percentage(std::stoi(into_u8(evt.GetString())));
         });
     }
     else {
@@ -3143,17 +3146,15 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     if (dialog_result != wxID_OK) {
         return;
     }   
-    if (m_app_downloader.get() == nullptr)
-        m_app_downloader = std::make_unique<AppDownloader>();
     // Save as dialog
     if (dwnld_dlg.select_download_path()) {
         wxFileDialog save_dlg(
             plater()
             , _L("Save as:")
             , boost::nowide::widen(m_app_downloader->get_default_dest_folder())
-            , boost::nowide::widen(AppDownloader::get_filename_from_url(url))
+            , boost::nowide::widen(AppUpdater::get_filename_from_url(url))
             //, "EXE Files (*.exe)|*.exe"
-            , boost::nowide::widen(AppDownloader::get_file_extension_from_url(url))
+            , boost::nowide::widen(AppUpdater::get_file_extension_from_url(url))
             , wxFD_SAVE | wxFD_OVERWRITE_PROMPT
         );
         // Canceled
@@ -3165,15 +3166,21 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
         }
     }
     // start download
-    this->plater_->get_notification_manager()->progress_indicator_set_status_text(_utf8("Download").c_str());
-    m_app_downloader->sync({ url, dwnld_dlg.run_after_download() });
+    this->plater_->get_notification_manager()->push_download_progress_notification(_utf8("Download"),[this](){ m_app_downloader->cancel(); return true;});
+    m_app_downloader->sync_download({ url, dwnld_dlg.run_after_download() });
 
 }
 
 void GUI_App::app_updater()
 {
     if (m_app_downloader.get() == nullptr)
-        m_app_downloader = std::make_unique<AppDownloader>();
+        m_app_downloader = std::make_unique<AppUpdater>();
+}
+
+void GUI_App::version_check()
+{
+    std::string version_check_url = app_config->version_check_url();
+    m_app_downloader->sync_version(version_check_url);
 }
 
 } // GUI

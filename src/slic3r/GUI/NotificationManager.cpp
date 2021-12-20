@@ -819,6 +819,60 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 		imgui.text(text.c_str());
 	}
 }
+//------ProgressBarWithCancelNotification----------------
+void NotificationManager::ProgressBarWithCancelNotification::render_cancel_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+	ImVec2 win_size(win_size_x, win_size_y);
+	ImVec2 win_pos(win_pos_x, win_pos_y);
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
+	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+
+	std::string button_text;
+	button_text = ImGui::CancelButton;
+
+	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
+		ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y),
+		true))
+	{
+		button_text = ImGui::CancelHoverButton;
+		// tooltip
+		long time_now = wxGetLocalTime();
+		if (m_hover_time > 0 && m_hover_time < time_now) {
+			ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
+			ImGui::BeginTooltip();
+			imgui.text(_u8L("Cancel upload") + " " + GUI::shortkey_ctrl_prefix() + "T");
+			ImGui::EndTooltip();
+			ImGui::PopStyleColor();
+		}
+		if (m_hover_time == 0)
+			m_hover_time = time_now;
+	}
+	else
+		m_hover_time = 0;
+
+	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
+	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
+	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
+	{
+		if(m_cancel_callback)
+			m_cancel_callback();
+	}
+
+	//invisible large button
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
+	ImGui::SetCursorPosY(0);
+	if (imgui.button("  ", m_line_height * 2.f, win_size.y))
+	{
+		if (m_cancel_callback)
+			m_cancel_callback();
+	}
+	ImGui::PopStyleColor(5);
+}
 //------PrintHostUploadNotification----------------
 void NotificationManager::PrintHostUploadNotification::init()
 {
@@ -1653,11 +1707,43 @@ void NotificationManager::upload_job_notification_show_error(int id, const std::
 	}
 }
 
+void NotificationManager::push_download_progress_notification(const std::string& text, std::function<bool()> cancel_callback)
+{
+	// If already exists, change text and reset progress
+	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
+		if (notification->get_type() == NotificationType::AppDownload) {
+			notification->update({ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, 10, text });
+			auto* pbwcn = dynamic_cast<ProgressBarWithCancelNotification*>(notification.get());
+			pbwcn->set_percentage(0.0f);
+			pbwcn->set_cancel_callback(cancel_callback);
+			return;
+		}
+	}
+	// push new one
+	NotificationData data{ NotificationType::AppDownload, NotificationLevel::ProgressBarNotificationLevel, 10, text };
+	push_notification_data(std::make_unique<NotificationManager::ProgressBarWithCancelNotification>(data, m_id_provider, m_evt_handler, cancel_callback), 0);
+}
+void NotificationManager::set_download_progress_percentage(float percentage)
+{
+	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
+		if (notification->get_type() == NotificationType::AppDownload) {
+			dynamic_cast<ProgressBarWithCancelNotification*>(notification.get())->set_percentage(percentage);
+			return;
+		}
+	}
+}
+void NotificationManager::download_progress_error()
+{
+}
+void NotificationManager::download_progress_cancel()
+{
+}
+
 void NotificationManager::init_slicing_progress_notification(std::function<bool()> cancel_callback)
 {
 	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		if (notification->get_type() == NotificationType::SlicingProgress) {
-			dynamic_cast<SlicingProgressNotification*>(notification.get())->set_cancel_callback(cancel_callback);	
+	 		dynamic_cast<SlicingProgressNotification*>(notification.get())->set_cancel_callback(cancel_callback);	
 			return;
 		}
 	}

@@ -14,20 +14,21 @@ struct DownloadAppData
 	bool		start_after;
 };
 
-class AppDownloader
+class AppUpdater
 {
 public:
-	AppDownloader();
-	~AppDownloader();
-	AppDownloader(AppDownloader&&) = delete;
-	AppDownloader(const AppDownloader&) = delete;
-	AppDownloader& operator=(AppDownloader&&) = delete;
-	AppDownloader& operator=(const AppDownloader&) = delete;
+	AppUpdater();
+	~AppUpdater();
+	AppUpdater(AppUpdater&&) = delete;
+	AppUpdater(const AppUpdater&) = delete;
+	AppUpdater& operator=(AppUpdater&&) = delete;
+	AppUpdater& operator=(const AppUpdater&) = delete;
 
 	// downloads app file
-	void sync(const DownloadAppData& input_data);
+	void sync_download(const DownloadAppData& input_data);
 	// downloads version file
-	void sync_version();
+	void sync_version(const std::string& version_check_url);
+	void cancel();
 
 	void		set_dest_path(const std::string& dest);
 	std::string get_default_dest_folder();
@@ -39,6 +40,8 @@ private:
 	std::unique_ptr<priv> p;
 };
 
+wxDECLARE_EVENT(EVT_SLIC3R_VERSION_ONLINE, wxCommandEvent);
+wxDECLARE_EVENT(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, wxCommandEvent);
 wxDECLARE_EVENT(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, wxCommandEvent);
 } //namespace Slic3r 
 #endif
