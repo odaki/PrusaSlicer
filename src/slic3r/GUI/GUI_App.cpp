@@ -773,7 +773,7 @@ void GUI_App::post_init()
         CallAfter([this] {
             bool cw_showed = this->config_wizard_startup();
             this->preset_updater->sync(preset_bundle);
-            this->version_check();
+            this->app_version_check();
             if (! cw_showed) {
                 // The CallAfter is needed as well, without it, GL extensions did not show.
                 // Also, we only want to show this when the wizard does not, so the new user
@@ -808,7 +808,7 @@ GUI_App::GUI_App(EAppMode mode)
 	//app config initializes early becasuse it is used in instance checking in PrusaSlicer.cpp
 	this->init_app_config();
     // init app downloader after path to datadir is set
-    m_app_downloader = std::make_unique<AppUpdater>();
+    m_app_updater = std::make_unique<AppUpdater>();
 }
 
 GUI_App::~GUI_App()
@@ -2117,7 +2117,8 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
         local_menu->Append(config_id_base + ConfigMenuWizard, config_wizard_name + dots, config_wizard_tooltip);
         local_menu->Append(config_id_base + ConfigMenuSnapshots, _L("&Configuration Snapshots") + dots, _L("Inspect / activate configuration snapshots"));
         local_menu->Append(config_id_base + ConfigMenuTakeSnapshot, _L("Take Configuration &Snapshot"), _L("Capture a configuration snapshot"));
-        local_menu->Append(config_id_base + ConfigMenuUpdate, _L("Check for Configuration Updates"), _L("Check for configuration updates"));
+        local_menu->Append(config_id_base + ConfigMenuUpdateConf, _L("Check for Configuration Updates"), _L("Check for configuration updates"));
+        local_menu->Append(config_id_base + ConfigMenuUpdateApp, _L("Check for Application Updates"), _L("Check for new version of application"));
 #if defined(__linux__) && defined(SLIC3R_DESKTOP_INTEGRATION) 
         //if (DesktopIntegrationDialog::integration_possible())
         local_menu->Append(config_id_base + ConfigMenuDesktopIntegration, _L("Desktop Integration"), _L("Desktop Integration"));    
@@ -2159,9 +2160,12 @@ void GUI_App::add_config_menu(wxMenuBar *menu)
         case ConfigMenuWizard:
             run_wizard(ConfigWizard::RR_USER);
             break;
-		case ConfigMenuUpdate:
+		case ConfigMenuUpdateConf:
 			check_updates(true);
 			break;
+        case ConfigMenuUpdateApp:
+            app_updater(true);
+            break;
 #ifdef __linux__
         case ConfigMenuDesktopIntegration:
             show_desktop_integration_dialog();
@@ -3121,15 +3125,32 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
     */
     // updater 
 
-    // TODO: get from evt
-#ifdef _WIN32
-    std::string url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
-#else
-    std::string url = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.3.3/PrusaSlicer-2.3.3+linux-x64-GTK3-202107161044.AppImage";
-#endif
+    app_updater(false);
+}
+
+void GUI_App::app_updater(bool from_user)
+{
+    DownloadAppData app_data = m_app_updater->get_app_data();
+
+    if (!app_data.version)
+    {
+        // no data read online? If called by user interaction, try download version file.
+        if (from_user)
+            app_version_check();
+        return;
+    } else if (*app_data.version <= *Semver::parse(SLIC3R_VERSION)) {
+        // No new version online
+        if (from_user)
+        {
+            //TODO: dialog it
+            BOOST_LOG_TRIVIAL(info) << "There is no newer version online.";
+        }
+    }
+
+    assert(!app_data.url.empty());
 
     // dialog with new version info
-    AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *Semver::parse(into_u8(evt.GetString())));
+    AppUpdateAvailableDialog dialog(*Semver::parse(SLIC3R_VERSION), *app_data.version);
     auto dialog_result = dialog.ShowModal();
     // checkbox "do not show again"
     if (dialog.disable_version_check()) {
@@ -3140,47 +3161,43 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
         return;
     }
     // dialog with new version download (installer or app dependent on system)
-    AppUpdateDownloadDialog dwnld_dlg(*Semver::parse(into_u8(evt.GetString())));
+    AppUpdateDownloadDialog dwnld_dlg(*app_data.version);
     dialog_result = dwnld_dlg.ShowModal();
     //  Doesn't wish to download
     if (dialog_result != wxID_OK) {
         return;
-    }   
+    }
     // Save as dialog
     if (dwnld_dlg.select_download_path()) {
+        std::string extension = AppUpdater::get_file_extension_from_url(app_data.url);
+        wxString wildcard (extension == ".exe" ? L"EXE Files (*.exe)|*.exe" : boost::nowide::widen(extension));
         wxFileDialog save_dlg(
             plater()
             , _L("Save as:")
-            , boost::nowide::widen(m_app_downloader->get_default_dest_folder())
-            , boost::nowide::widen(AppUpdater::get_filename_from_url(url))
-            //, "EXE Files (*.exe)|*.exe"
-            , boost::nowide::widen(AppUpdater::get_file_extension_from_url(url))
+            , boost::nowide::widen(m_app_updater->get_default_dest_folder())
+            , boost::nowide::widen(AppUpdater::get_filename_from_url(app_data.url))
+            , wildcard
             , wxFD_SAVE | wxFD_OVERWRITE_PROMPT
         );
         // Canceled
         if (save_dlg.ShowModal() != wxID_OK) {
             return;
-        // set path
-        } else {
-            m_app_downloader->set_dest_path(save_dlg.GetPath().ToUTF8().data());
+            // set path
+        }
+        else {
+            m_app_updater->set_dest_path(save_dlg.GetPath().ToUTF8().data());
         }
     }
     // start download
-    this->plater_->get_notification_manager()->push_download_progress_notification(_utf8("Download"),/*[this](){ m_app_downloader->cancel(); return true;}*/std::bind(&AppUpdater::cancel_callback, this->m_app_downloader.get()));
-    m_app_downloader->sync_download({ url, dwnld_dlg.run_after_download() });
-
+    this->plater_->get_notification_manager()->push_download_progress_notification(_utf8("Download"), std::bind(&AppUpdater::cancel_callback, this->m_app_updater.get()));
+    m_app_updater->set_start_after(dwnld_dlg.run_after_download());
+    m_app_updater->sync_download();
 }
 
-void GUI_App::app_updater()
-{
-    if (m_app_downloader.get() == nullptr)
-        m_app_downloader = std::make_unique<AppUpdater>();
-}
-
-void GUI_App::version_check()
+void GUI_App::app_version_check()
 {
     std::string version_check_url = app_config->version_check_url();
-    m_app_downloader->sync_version(version_check_url);
+    m_app_updater->sync_version(version_check_url);
 }
 
 } // GUI

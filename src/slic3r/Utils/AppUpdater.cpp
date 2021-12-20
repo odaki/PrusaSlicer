@@ -104,13 +104,22 @@ struct AppUpdater::priv {
 	void set_dest_path(const boost::filesystem::path& p) { m_user_dest_path = p; }
 	void set_dest_path(boost::filesystem::path p) { m_user_dest_path = std::move(p); }
 
-	void version_check(const std::string& version_check_url) const;
-	void parse_version_string(const std::string& body) const;
+	void version_check(const std::string& version_check_url) ;
+	void parse_version_string(const std::string& body) ;
 
 	std::thread				m_thread;
 	std::atomic_bool        m_cancel;
 	boost::filesystem::path m_default_dest_folder;
 	boost::filesystem::path m_user_dest_path;
+
+
+	// read / write needs to be locked
+	std::mutex				m_data_mutex;
+	DownloadAppData			m_online_version_data;
+	DownloadAppData get_app_data();
+	void            set_app_data(const DownloadAppData& data);
+	void			set_start_after(bool start);
+	
 };
 
 AppUpdater::priv::priv() :
@@ -223,7 +232,7 @@ bool AppUpdater::priv::run_downloaded_file(boost::filesystem::path path)
 
 }
 
-void AppUpdater::priv::version_check(const std::string& version_check_url) const
+void AppUpdater::priv::version_check(const std::string& version_check_url) 
 {
 	assert(!version_check_url.empty());
 	std::string error_message;
@@ -240,8 +249,10 @@ void AppUpdater::priv::version_check(const std::string& version_check_url) const
 	);
 }
 
-void AppUpdater::priv::parse_version_string(const std::string& body) const
+void AppUpdater::priv::parse_version_string(const std::string& body) 
 {
+	DownloadAppData new_data;
+
 	// release version
 	std::string version;
 	const auto first_nl_pos = body.find_first_of("\n\r");
@@ -258,6 +269,7 @@ void AppUpdater::priv::parse_version_string(const std::string& body) const
 	wxCommandEvent* evt = new wxCommandEvent(EVT_SLIC3R_VERSION_ONLINE);
 	evt->SetString(GUI::from_u8(version));
 	GUI::wxGetApp().QueueEvent(evt);
+	new_data.version = release_version;
 
 	// alpha / beta version
 	std::vector<std::string> prerelease_versions;
@@ -305,8 +317,33 @@ void AppUpdater::priv::parse_version_string(const std::string& body) const
 		evt->SetString(GUI::from_u8(version));
 		GUI::wxGetApp().QueueEvent(evt);
 	}
+
+#ifdef _WIN32
+	new_data.url = "https://www.prusa3d.com/downloads/drivers/PrusaSlicer_Win_standalone_2.3.3.exe";
+#else
+	new_data.url = "https://github.com/prusa3d/PrusaSlicer/releases/download/version_2.3.3/PrusaSlicer-2.3.3+linux-x64-GTK3-202107161044.AppImage";
+#endif
+
+	set_app_data(new_data);
 }
 
+DownloadAppData AppUpdater::priv::get_app_data()
+{
+	const std::lock_guard<std::mutex> lock(m_data_mutex);
+	DownloadAppData ret_val(m_online_version_data);
+	return ret_val;
+}
+
+void AppUpdater::priv::set_start_after(bool start) {
+	const std::lock_guard<std::mutex> lock(m_data_mutex);
+	m_online_version_data.start_after = start;
+}
+
+void AppUpdater::priv::set_app_data(const DownloadAppData& data)
+{
+	const std::lock_guard<std::mutex> lock(m_data_mutex);
+	m_online_version_data = data;
+}
 
 AppUpdater::AppUpdater()
 	:p(new priv())
@@ -321,7 +358,7 @@ AppUpdater::~AppUpdater()
 		p->m_thread.join();
 	}
 }
-void AppUpdater::sync_download(const DownloadAppData& input_data)
+void AppUpdater::sync_download()
 {
 	assert(p);
 	// join thread first - it could have been in sync_version
@@ -332,9 +369,13 @@ void AppUpdater::sync_download(const DownloadAppData& input_data)
 		p->m_thread.join();
 	}
 	p->m_cancel = false;
+
+	DownloadAppData input_data = p->get_app_data();
+	assert(!input_data.url.empty());
+
 	p->m_thread = std::thread(
 		[this, input_data]() {
-			if (boost::filesystem::path dest_path = p->download_file(input_data); !dest_path.empty()){
+			if (boost::filesystem::path dest_path = p->download_file(input_data); boost::filesystem::is_directory(dest_path)){
 				if (input_data.start_after)
 					p->run_downloaded_file(std::move(dest_path));
 #ifdef _WIN32
@@ -392,5 +433,16 @@ std::string AppUpdater::get_file_extension_from_url(const std::string& url)
 	size_t dot = url.rfind('.');
 	return (dot != std::string::npos ? url.substr(dot) : url);
 }
+
+
+void AppUpdater::set_start_after(bool start) {
+	p->set_start_after(start);
+}
+
+DownloadAppData AppUpdater::get_app_data()
+{
+	return p->get_app_data();
+}
+
 
 } //namespace Slic3r 

@@ -2,6 +2,7 @@
 #define slic3r_AppUpdate_hpp_
 
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 #include "libslic3r/Utils.hpp"
 
 class boost::filesystem::path;
@@ -10,8 +11,9 @@ namespace Slic3r {
 
 struct DownloadAppData
 {
-	std::string url;
-	bool		start_after;
+	std::string				url;
+	bool					start_after;
+	boost::optional<Semver> version;
 };
 
 class AppUpdater
@@ -25,7 +27,7 @@ public:
 	AppUpdater& operator=(const AppUpdater&) = delete;
 
 	// downloads app file
-	void sync_download(const DownloadAppData& input_data);
+	void sync_download();
 	// downloads version file
 	void sync_version(const std::string& version_check_url);
 	void cancel();
@@ -36,6 +38,10 @@ public:
 
 	static std::string get_filename_from_url(const std::string& url);
 	static std::string get_file_extension_from_url(const std::string& url);
+
+	// mutex access
+	void				set_start_after(bool start);
+	DownloadAppData	get_app_data();
 private:
 	struct priv;
 	std::unique_ptr<priv> p;
