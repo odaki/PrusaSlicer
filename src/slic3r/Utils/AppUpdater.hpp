@@ -29,6 +29,7 @@ public:
 	// downloads version file
 	void sync_version(const std::string& version_check_url);
 	void cancel();
+	bool cancel_callback();
 
 	void		set_dest_path(const std::string& dest);
 	std::string get_default_dest_folder();

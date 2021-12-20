@@ -366,6 +366,11 @@ void AppUpdater::cancel()
 {
 	p->m_cancel = true;
 }
+bool AppUpdater::cancel_callback()
+{
+	cancel();
+	return true;
+}
 
 void AppUpdater::set_dest_path(const std::string& dest)
 {

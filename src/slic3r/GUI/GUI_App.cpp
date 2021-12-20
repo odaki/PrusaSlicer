@@ -1176,7 +1176,7 @@ bool GUI_App::on_init_inner()
             });
         Bind(EVT_SLIC3R_APP_DOWNLOAD_PROGRESS, [this](const wxCommandEvent& evt) {
             if (this->plater_ != nullptr)
-                this->plater_->get_notification_manager()->set_download_progress_percentage(std::stoi(into_u8(evt.GetString())));
+                this->plater_->get_notification_manager()->set_download_progress_percentage((float)std::stoi(into_u8(evt.GetString())) / 100.f );
         });
     }
     else {
@@ -3166,7 +3166,7 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
         }
     }
     // start download
-    this->plater_->get_notification_manager()->push_download_progress_notification(_utf8("Download"),[this](){ m_app_downloader->cancel(); return true;});
+    this->plater_->get_notification_manager()->push_download_progress_notification(_utf8("Download"),/*[this](){ m_app_downloader->cancel(); return true;}*/std::bind(&AppUpdater::cancel_callback, this->m_app_downloader.get()));
     m_app_downloader->sync_download({ url, dwnld_dlg.run_after_download() });
 
 }

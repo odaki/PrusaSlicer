@@ -472,13 +472,24 @@ private:
 		ProgressBarWithCancelNotification(const NotificationData& n, NotificationIDProvider& id_provider, wxEvtHandler* evt_handler, std::function<bool()> cancel_callback) 
 			: ProgressBarNotification(n, id_provider, evt_handler)
 			, m_cancel_callback(cancel_callback)
-		{ }
-//		void	set_percentage(float percent) override { m_percentage = percent; }
-		void	set_cancel_callback(std::function<bool()>	cancel_callback) { m_cancel_callback = cancel_callback; }
-	private:
-		void	render_cancel_button(ImGuiWrapper& imgui,
+		{ 
+		}
+		void	set_percentage(float percent) override { m_percentage = percent; if(m_percentage >= 1.f) m_state = EState::FadingOut; else m_state = EState::NotFading; }
+		void	set_cancel_callback(std::function<bool()> cancel_callback) { m_cancel_callback = cancel_callback; }
+	protected:
+		void	render_close_button(ImGuiWrapper& imgui,
 										const float win_size_x, const float win_size_y,
 										const float win_pos_x, const float win_pos_y) override;
+		void    render_close_button_inner(ImGuiWrapper& imgui,
+											const float win_size_x, const float win_size_y,
+											const float win_pos_x, const float win_pos_y);
+		void    render_cancel_button_inner(ImGuiWrapper& imgui,
+											const float win_size_x, const float win_size_y,
+											const float win_pos_x, const float win_pos_y);
+		void	render_bar(ImGuiWrapper& imgui,
+							const float win_size_x, const float win_size_y,
+							const float win_pos_x, const float win_pos_y) override;
+		void    on_cancel_button();
 
 		std::function<bool()>	m_cancel_callback;
 		long					m_hover_time{ 0 };

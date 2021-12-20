@@ -820,7 +820,15 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 	}
 }
 //------ProgressBarWithCancelNotification----------------
-void NotificationManager::ProgressBarWithCancelNotification::render_cancel_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+
+void NotificationManager::ProgressBarWithCancelNotification::render_close_button(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+	if (m_percentage < 0.f || m_percentage >= 1.f)
+		render_close_button_inner(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
+	else
+		render_cancel_button_inner(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
+}
+void NotificationManager::ProgressBarWithCancelNotification::render_close_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
 {
 	ImVec2 win_size(win_size_x, win_size_y);
 	ImVec2 win_pos(win_pos_x, win_pos_y);
@@ -830,49 +838,101 @@ void NotificationManager::ProgressBarWithCancelNotification::render_cancel_butto
 	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
 
-	std::string button_text;
-	button_text = ImGui::CancelButton;
 
-	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - m_line_height * 5.f, win_pos.y),
-		ImVec2(win_pos.x - m_line_height * 2.5f, win_pos.y + win_size.y),
+	std::string button_text;
+	button_text = ImGui::CloseNotifButton;
+
+	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
+		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
 		true))
 	{
-		button_text = ImGui::CancelHoverButton;
-		// tooltip
-		long time_now = wxGetLocalTime();
-		if (m_hover_time > 0 && m_hover_time < time_now) {
-			ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
-			ImGui::BeginTooltip();
-			imgui.text(_u8L("Cancel upload") + " " + GUI::shortkey_ctrl_prefix() + "T");
-			ImGui::EndTooltip();
-			ImGui::PopStyleColor();
-		}
-		if (m_hover_time == 0)
-			m_hover_time = time_now;
+		button_text = ImGui::CloseNotifHoverButton;
 	}
-	else
-		m_hover_time = 0;
-
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
 	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
-		if(m_cancel_callback)
-			m_cancel_callback();
+		close();
 	}
 
 	//invisible large button
-	ImGui::SetCursorPosX(win_size.x - m_line_height * 4.625f);
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
 	ImGui::SetCursorPosY(0);
-	if (imgui.button("  ", m_line_height * 2.f, win_size.y))
+	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
 	{
-		if (m_cancel_callback)
-			m_cancel_callback();
+		close();
 	}
 	ImGui::PopStyleColor(5);
+
 }
+
+void NotificationManager::ProgressBarWithCancelNotification::render_cancel_button_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+	ImVec2 win_size(win_size_x, win_size_y);
+	ImVec2 win_pos(win_pos_x, win_pos_y);
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
+	push_style_color(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
+
+
+	std::string button_text;
+	button_text = ImGui::CancelButton;
+
+	if (ImGui::IsMouseHoveringRect(ImVec2(win_pos.x - win_size.x / 10.f, win_pos.y),
+		ImVec2(win_pos.x, win_pos.y + win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)),
+		true))
+	{
+		button_text = ImGui::CancelHoverButton;
+	}
+	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
+	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
+	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
+	{
+		on_cancel_button();
+	}
+
+	//invisible large button
+	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.35f);
+	ImGui::SetCursorPosY(0);
+	if (imgui.button(" ", m_line_height * 2.125, win_size.y - (m_minimize_b_visible ? 2 * m_line_height : 0)))
+	{
+		on_cancel_button();
+	}
+	ImGui::PopStyleColor(5);
+
+}
+
+void NotificationManager::ProgressBarWithCancelNotification::on_cancel_button()
+{
+	if (m_cancel_callback) {
+		if (m_cancel_callback()) {
+			close();
+		}
+	}
+}
+
+void NotificationManager::ProgressBarWithCancelNotification::render_bar(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
+{
+	ProgressBarNotification::render_bar(imgui, win_size_x, win_size_y, win_pos_x, win_pos_y);
+	std::string text;
+	if (m_percentage < 0.f) {
+		text = _u8L("ERROR");
+	} else {
+		std::stringstream stream;
+		stream << std::fixed << std::setprecision(2) << (int)(m_percentage * 100) << "%";
+		text = stream.str();
+	}
+	ImGui::SetCursorPosX(m_left_indentation);
+	ImGui::SetCursorPosY(win_size_y / 2 + win_size_y / 6 - (m_multiline ? 0 : m_line_height / 4));
+	imgui.text(text.c_str());
+}
+
 //------PrintHostUploadNotification----------------
 void NotificationManager::PrintHostUploadNotification::init()
 {
@@ -1725,7 +1785,7 @@ void NotificationManager::push_download_progress_notification(const std::string&
 }
 void NotificationManager::set_download_progress_percentage(float percentage)
 {
-	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
+ 	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		if (notification->get_type() == NotificationType::AppDownload) {
 			dynamic_cast<ProgressBarWithCancelNotification*>(notification.get())->set_percentage(percentage);
 			return;
