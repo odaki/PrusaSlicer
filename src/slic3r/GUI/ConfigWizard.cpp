@@ -2901,7 +2901,7 @@ ConfigWizard::ConfigWizard(wxWindow *parent)
     }
 
     p->any_sla_selected = p->check_sla_selected();
-    if (p->only_sla_mode)
+    if (!p->only_sla_mode)
         p->any_fff_selected = p->check_fff_selected();
 
     p->update_materials(T_ANY);
